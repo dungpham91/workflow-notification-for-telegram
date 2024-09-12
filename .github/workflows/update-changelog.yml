@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
-          ref: main
+          ref: ${{ github.head_ref }}
 
       - name: Update Changelog
         uses: stefanzweifel/changelog-updater-action@61ce794778aa787ea8d204d9fe2928543cb2fe40 # v1.11.0
@@ -32,5 +32,3 @@ jobs:
             file_pattern: CHANGELOG.md
             commit_options: '--no-verify --signoff'
             create_branch: true
-            skip_fetch: false
-            skip_checkout: false
