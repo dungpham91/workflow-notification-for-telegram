@@ -31,7 +31,7 @@ class TestSendNotification(unittest.TestCase):
         self.assertEqual(get_status_icon("unknown"), "❓")
 
     # Test function to mock the Telegram message sending
-    @patch('send_notification.requests.post')
+    @patch('main.requests.post')
     def test_send_telegram_message(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
