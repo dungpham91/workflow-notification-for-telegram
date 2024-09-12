@@ -61,6 +61,7 @@ def check_github_access(github_token, repo_name):
         
         repo_info = response.json()
         logging.info(f"GitHub API access successful. Repo name: {repo_info['full_name']}")
+        return repo_info
     except Exception as e:
         logging.error(f"GitHub API access failed: {str(e)}", exc_info=True)
         sys.exit(1)
@@ -101,6 +102,32 @@ def compute_duration(start_time, end_time):
         logging.error(f"Error computing duration: {str(e)}", exc_info=True)
         sys.exit(1)
 
+# Function to get detailed information about a workflow run based on run_id
+def get_workflow_run(github_token, repo_name, run_id):
+    try:
+        logging.info(f"Fetching workflow run {run_id} information...")
+
+        # Set headers for authentication
+        headers = {
+            'Authorization': f'token {github_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+
+        # API URL to fetch a run
+        url = f'https://api.github.com/repos/{repo_name}/actions/runs/{run_id}'
+
+        # Make the request to GitHub API
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an error if the request failed
+        workflow_run = response.json()  # Parse the response as JSON
+
+        logging.info(f"Successfully fetched workflow run {run_id} information.")
+        return workflow_run
+    except Exception as e:
+        logging.error(f"Failed to fetch workflow run: {str(e)}", exc_info=True)
+        sys.exit(1)
+
+
 # Fetch job information from GitHub API
 def get_workflow_jobs(github_token, repo_name, run_id):
     try:
@@ -118,7 +145,6 @@ def get_workflow_jobs(github_token, repo_name, run_id):
         # Make the request to GitHub API
         response = requests.get(url, headers=headers)
         response.raise_for_status()  # Raise an error if the request failed
-
         jobs = response.json()  # Parse the response as JSON
 
         logging.info("Successfully fetched workflow and job information.")
@@ -150,13 +176,13 @@ def format_telegram_message(workflow, jobs):
         logging.info("Formatting the message for Telegram...")
         
         # Base information about the workflow run
-        message = f"🔔 *{workflow['name']}* \n\n"
+        message = f"🔔 *{workflow['workflow_name']}* \n\n"
         message += f"💼 *Status*: {'Success' if workflow['conclusion'] == 'success' else 'Failure'}\n"
-        message += f"🕒 *Completed in*: {compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))}\n\n"
+        message += f"🕒 *Completed in*: {compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))}\n\n"
 
         # Adding pull request, push, or release information
         event_type = workflow.get('event', 'unknown event')
-        event_url = workflow['html_url']  # URL to the workflow run
+        event_url = workflow['html_url']
         message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url})\n\n"
 
         # Job details
@@ -164,7 +190,7 @@ def format_telegram_message(workflow, jobs):
         for job in jobs['jobs']:
             job_icon = get_status_icon(job['conclusion'])
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
-            job_url = job['html_url']  # URL to job page
+            job_url = job['html_url']
             message += f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
 
         # Author information (e.g., who initiated the run)
@@ -190,11 +216,12 @@ if __name__ == "__main__":
 
         # Check connections to Telegram and GitHub API
         check_telegram_connection(env['telegram_token'])
-        check_github_access(env['github_token'], env['repo_name'])
+        repo_info = check_github_access(env['github_token'], env['repo_name'])
 
-        # Fetch workflow and job details
-        logging.info("Fetching workflow and job details...")
-        workflow_run, workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
+        # Fetch workflow run and job details
+        logging.info("Fetching workflow run and job details...")
+        workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
+        workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
 
         # Format the message
         logging.info("Formatting the message...")
