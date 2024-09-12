@@ -1,6 +1,14 @@
 name: Run Python Unit Tests
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - main.py
+      - test.py
+  pull_request:
+    paths:
+      - main.py
+      - test.py
 
 jobs:
   test:
