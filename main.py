@@ -175,14 +175,15 @@ def format_telegram_message(workflow, jobs):
     try:
         logging.info("Formatting the message for Telegram...")
         
-        # Base information about the workflow run
-        message = f"🔔 *{workflow['workflow_name']}* \n\n"
+        # Base information about the workflow run, kiểm tra nếu 'workflow_name' không tồn tại
+        workflow_name = workflow.get('workflow_name', 'Unknown Workflow')
+        message = f"🔔 *{workflow_name}* \n\n"
         message += f"💼 *Status*: {'Success' if workflow['conclusion'] == 'success' else 'Failure'}\n"
         message += f"🕒 *Completed in*: {compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))}\n\n"
 
         # Adding pull request, push, or release information
         event_type = workflow.get('event', 'unknown event')
-        event_url = workflow['html_url']
+        event_url = workflow['html_url']  # URL to the workflow run
         message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url})\n\n"
 
         # Job details
@@ -190,7 +191,7 @@ def format_telegram_message(workflow, jobs):
         for job in jobs['jobs']:
             job_icon = get_status_icon(job['conclusion'])
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
-            job_url = job['html_url']
+            job_url = job['html_url']  # URL to job page
             message += f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
 
         # Author information (e.g., who initiated the run)
