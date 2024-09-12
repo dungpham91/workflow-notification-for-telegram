@@ -46,9 +46,21 @@ def check_telegram_connection(telegram_token):
 def check_github_access(github_token, repo_name):
     try:
         logging.info("Checking GitHub API access...")
-        g = Github(github_token)
-        repo = g.get_repo(repo_name)
-        logging.info(f"GitHub API access successful. Repo name: {repo.full_name}")
+        
+        headers = {
+            'Authorization': f'token {github_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        
+        # API URL to check access to repository
+        url = f'https://api.github.com/repos/{repo_name}'
+        
+        # Make request to GitHub API
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        repo_info = response.json()
+        logging.info(f"GitHub API access successful. Repo name: {repo_info['full_name']}")
     except Exception as e:
         logging.error(f"GitHub API access failed: {str(e)}", exc_info=True)
         sys.exit(1)
@@ -137,15 +149,34 @@ def format_telegram_message(workflow, jobs):
     try:
         logging.info("Formatting the message for Telegram...")
         
-        message = f"🔔 *{workflow.name}* \n\n"
-        message += f"💼 *Status*: {'Success' if workflow.conclusion == 'success' else 'Failure'}\n"
-        message += f"🕒 *Completed in*: {compute_duration(workflow.created_at, workflow.updated_at)}\n\n"
-        message += "*Job Details:*\n"
+        # Base information about the workflow run
+        message = f"🔔 *{workflow['name']}* \n\n"
+        message += f"💼 *Status*: {'Success' if workflow['conclusion'] == 'success' else 'Failure'}\n"
+        message += f"🕒 *Completed in*: {compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))}\n\n"
 
-        for job in jobs:
-            job_icon = get_status_icon(job.conclusion)
-            job_duration = compute_duration(job.started_at, job.completed_at)
-            message += f"{job_icon} `{job.name}` ({job_duration})\n"
+        # Adding pull request, push, or release information
+        if workflow.get('event'):
+            event_type = workflow['event']
+            event_url = workflow['html_url']  # URL to event page
+            message += f"🔖 *{event_type.capitalize()}*: [{workflow['head_commit']['message']}]({event_url})\n\n"
+
+        # Job details
+        message += "*Job Details:*\n"
+        for job in jobs['jobs']:
+            job_icon = get_status_icon(job['conclusion'])
+            job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
+            job_url = job['html_url']  # URL to job page
+            message += f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
+
+        # Author information (e.g., who initiated the run)
+        author = workflow['head_commit']['author']['name']
+        author_url = workflow['head_commit']['author']['html_url']
+        author_icon = f"https://github.com/{author}.png?size=32"
+        message += f"\n👤 *Author*: [{author}]({author_url}) [![Author Avatar]({author_icon})]\n"
+
+        # Adding repository link in footer
+        repo_url = workflow['repository']['html_url']
+        message += f"\n🔗 [Repository: {workflow['repository']['full_name']}]({repo_url})\n"
 
         logging.info("Message formatted successfully.")
         return message
