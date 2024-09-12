@@ -1,0 +1,30 @@
+name: Auto approve
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+    - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      name: Approve LGTM Review
+      if: github.actor == 'dungpham91' &&  contains(github.event.comment.body, 'LGTM')
+      with:
+        script: |
+          github.rest.pulls.createReview({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.issue.number,
+            review_id: 1,
+            event: 'APPROVE',
+            body: 'Auto approved for owner pull request.'
+          })
