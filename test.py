@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 from unittest.mock import patch, MagicMock
-from send_notification import compute_duration, get_status_icon, send_telegram_message, load_env_variables
+from main import compute_duration, get_status_icon, send_telegram_message, load_env_variables
 
 class TestSendNotification(unittest.TestCase):
 
