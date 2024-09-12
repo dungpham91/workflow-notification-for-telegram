@@ -1,0 +1,25 @@
+name: 'Telegram Workflow Notification'
+description: 'GitHub Action for sending workflow run results to Telegram'
+author: 'Daniel Pham'
+branding:
+  icon: bell
+  color: black
+
+inputs:
+  TELEGRAM_TOKEN:
+    description: 'Telegram Bot Token'
+    required: true
+  TELEGRAM_CHAT_ID:
+    description: 'Telegram Chat ID'
+    required: true
+  GITHUB_TOKEN:
+    description: 'GitHub Token'
+    required: true
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.TELEGRAM_TOKEN }}
+    - ${{ inputs.TELEGRAM_CHAT_ID }}
+    - ${{ inputs.GITHUB_TOKEN }}
