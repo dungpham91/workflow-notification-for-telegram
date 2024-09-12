@@ -155,10 +155,9 @@ def format_telegram_message(workflow, jobs):
         message += f"🕒 *Completed in*: {compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))}\n\n"
 
         # Adding pull request, push, or release information
-        if workflow.get('event'):
-            event_type = workflow['event']
-            event_url = workflow['html_url']  # URL to event page
-            message += f"🔖 *{event_type.capitalize()}*: [{workflow['head_commit']['message']}]({event_url})\n\n"
+        event_type = workflow.get('event', 'unknown event')
+        event_url = workflow['html_url']  # URL to the workflow run
+        message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url})\n\n"
 
         # Job details
         message += "*Job Details:*\n"
@@ -170,9 +169,7 @@ def format_telegram_message(workflow, jobs):
 
         # Author information (e.g., who initiated the run)
         author = workflow['head_commit']['author']['name']
-        author_url = workflow['head_commit']['author']['html_url']
-        author_icon = f"https://github.com/{author}.png?size=32"
-        message += f"\n👤 *Author*: [{author}]({author_url}) [![Author Avatar]({author_icon})]\n"
+        message += f"\n👤 *Author*: {author}\n"
 
         # Adding repository link in footer
         repo_url = workflow['repository']['html_url']
