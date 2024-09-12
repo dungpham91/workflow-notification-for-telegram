@@ -100,9 +100,13 @@ def get_workflow_jobs(github_token, repo_name, run_id):
         
         g = Github(github_token)
         repo = g.get_repo(repo_name)
+        
+        # Fetch workflow run
         run = repo.get_workflow_run(run_id)
-        jobs = repo.get_workflow_run_jobs(run_id)
 
+        # Fetch jobs for the workflow run
+        jobs = repo.get_actions().list_jobs_for_workflow_run(run_id)
+        
         logging.info("Successfully fetched workflow and job information.")
         return run, jobs
     except Exception as e:
