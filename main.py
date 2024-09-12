@@ -2,7 +2,6 @@ import os
 import requests
 import logging
 from datetime import datetime
-from github import Github
 import sys
 
 # Set up logging
@@ -95,20 +94,23 @@ def get_workflow_jobs(github_token, repo_name, run_id):
     try:
         logging.info("Fetching workflow job information from GitHub API...")
         
-        # Convert run_id to integer
-        run_id = int(run_id)
-        
-        g = Github(github_token)
-        repo = g.get_repo(repo_name)
-        
-        # Fetch workflow run
-        run = repo.get_workflow_run(run_id)
+        # Set headers for authentication
+        headers = {
+            'Authorization': f'token {github_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
 
-        # Fetch jobs for the workflow run
-        jobs = repo.get_actions().list_jobs_for_workflow_run(run_id)
-        
+        # API URL to fetch jobs for a workflow run
+        url = f'https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/jobs'
+
+        # Make the request to GitHub API
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an error if the request failed
+
+        jobs = response.json()  # Parse the response as JSON
+
         logging.info("Successfully fetched workflow and job information.")
-        return run, jobs
+        return jobs
     except Exception as e:
         logging.error(f"Failed to fetch workflow jobs: {str(e)}", exc_info=True)
         sys.exit(1)
