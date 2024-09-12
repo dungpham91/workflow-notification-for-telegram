@@ -34,14 +34,14 @@ def check_telegram_connection(telegram_token):
         logging.error(f"Failed to connect to Telegram: {response.text}")
         raise Exception(f"Telegram connection failed: {response.text}")
 
-# Function to check GitHub API access using the GitHub Token
-def check_github_access(github_token):
+# Function to check GitHub API access using the GITHUB_TOKEN
+def check_github_access(github_token, repo_name):
     logging.info("Checking GitHub API access...")
     
     try:
         g = Github(github_token)
-        user = g.get_user()
-        logging.info(f"GitHub API access successful. Logged in as: {user.login}")
+        repo = g.get_repo(repo_name)
+        logging.info(f"GitHub API access successful. Repo name: {repo.full_name}")
     except Exception as e:
         logging.error(f"GitHub API access failed: {str(e)}")
         raise Exception(f"GitHub API access failed: {str(e)}")
@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
         # Check connections to Telegram and GitHub API
         check_telegram_connection(env['telegram_token'])
-        check_github_access(env['github_token'])
+        check_github_access(env['github_token'], env['repo_name'])
 
         # Fetch workflow and job details
         workflow_run, workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
