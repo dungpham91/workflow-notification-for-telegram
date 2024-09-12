@@ -95,6 +95,9 @@ def get_workflow_jobs(github_token, repo_name, run_id):
     try:
         logging.info("Fetching workflow job information from GitHub API...")
         
+        # Convert run_id to integer
+        run_id = int(run_id)
+        
         g = Github(github_token)
         repo = g.get_repo(repo_name)
         run = repo.get_workflow_run(run_id)
