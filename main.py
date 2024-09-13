@@ -107,12 +107,14 @@ def calculate_total_duration(jobs):
     try:
         total_duration = 0
         for job in jobs['jobs']:
-            # Ensure job has both 'started_at' and 'completed_at'
-            if 'started_at' in job and 'completed_at' in job:
+            # Ensure job has both 'started_at' and 'completed_at', and they are not None
+            if job.get('started_at') and job.get('completed_at'):
                 start_time = datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ')
                 end_time = datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
                 duration = (end_time - start_time).total_seconds()
                 total_duration += duration
+            else:
+                logging.warning(f"Job {job['name']} has incomplete timing information, skipping...")
         return total_duration
     except Exception as e:
         logging.error(f"Error calculating total duration: {str(e)}", exc_info=True)
