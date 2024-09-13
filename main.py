@@ -234,8 +234,9 @@ def format_telegram_message(workflow, jobs, current_job_name):
 
         # Author information (display name and link) directly under event information
         author = workflow['head_commit']['author']
-        author_name = author['name']
-        author_url = f"https://github.com/{author['username']}"
+        author_name = author.get('name', 'Unknown Author')  # Fallback to 'Unknown Author' if name is missing
+        # Using 'username' if available, otherwise fallback to using name
+        author_url = f"https://github.com/{author.get('username', author_name)}"
         message += f"{workflow_status_emoji} 👤 *[Author: {author_name}]({author_url})*\n"
 
         # Job details formatted in columns
