@@ -211,19 +211,21 @@ def format_telegram_message(workflow, jobs, current_job_name):
         duration = compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), 
                                     datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))
 
+        # Combine workflow_name and run_number
+        workflow_display_name = f"{workflow_name} #{run_number}"
+
         # Author information
         author_name = workflow['actor']['login']
-        author_avatar_url = workflow['actor']['avatar_url']
         author_url = workflow['actor']['html_url']
 
         # Message header
         message = f"🔔 *Github Actions Notification*\n\n"
 
         # Event information with dynamic workflow name and duration
-        message += f"🔄 `{event_type}` | ⚙️ Workflow [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
+        message += f"🔄 Event: `{event_type}` | ⚙️ Workflow: [{workflow_display_name}]({event_url}) completed in *{duration}*\n\n"
 
         # Author information
-        message += f"[👤 {author_name}]({author_url})\n\n"
+        message += f"[👤 Author: {author_name}]({author_url})\n\n"
 
         # Job details with icons and durations
         message += "*Job Details:*\n"
@@ -245,18 +247,18 @@ def format_telegram_message(workflow, jobs, current_job_name):
             else:
                 right_column.append(job_detail)
 
-        # Format left and right columns with spacing between them
+        # Format left and right columns with more space between them
         max_lines = max(len(left_column), len(right_column))
         for i in range(max_lines):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
-            # Add spacing between the columns
-            message += f"{left:<50} {right}\n"
+            # Add more spacing (e.g., 4 tabs) between the columns
+            message += f"{left}\t\t\t\t{right}\n\n"
 
         # Repository information
         repo_url = workflow['repository']['html_url']
         repo_name = workflow['repository']['full_name']
-        message += f"📦 [{repo_name}]({repo_url})"
+        message += f"📦 Repository: [{repo_name}]({repo_url})"
 
         logging.info("Message formatted successfully.")
         return message
