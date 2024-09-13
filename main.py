@@ -7,6 +7,9 @@ import sys
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Global variable for GitHub icon URL
+github_icon_url = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+
 # Global function to load environment variables
 def load_env_variables():
     try:
@@ -76,7 +79,7 @@ def send_telegram_message(telegram_token, chat_id, message):
         payload = {
             'chat_id': chat_id,
             'text': message,
-            'parse_mode': 'Markdown'
+            'parse_mode': 'MarkdownV2'  # Use MarkdownV2 format for message
         }
         
         response = requests.post(url, json=payload)
@@ -185,6 +188,7 @@ def get_status_icon(conclusion):
             "failure": "❌",
             "cancelled": "🚫",
             "skipped": "⏭️",
+            "in_progress": "⏳",
             "timed_out": "⏰",
             "neutral": "⚪",
             "action_required": "⚠️"
@@ -194,83 +198,65 @@ def get_status_icon(conclusion):
         logging.error(f"Error mapping status icon: {str(e)}", exc_info=True)
         sys.exit(1)
 
-# Function to get workflow status line emoji based on conclusion
-def get_workflow_status_emoji(conclusion):
-    if conclusion == "success":
-        return "🟩"  # Green line emoji for success
-    elif conclusion == "failure":
-        return "🟥"  # Red line emoji for failure
-    elif conclusion == "cancelled":
-        return "⬜"  # Grey line emoji for cancelled
-    else:
-        return "🟦"  # Blue line emoji for in-progress (changed from yellow)
+# Function to escape text for MarkdownV2 format
+def escape_markdown(text):
+    """ Escape characters for Telegram MarkdownV2 """
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f"\\{char}")
+    return text
 
-# Format the message to be sent to Telegram (Markdown with table simulation)
+# Function to format the message for Telegram
 def format_telegram_message(workflow, jobs, current_job_name):
     try:
         logging.info("Formatting the message for Telegram...")
 
-        # Determine the overall workflow status emoji
-        workflow_status_emoji = get_workflow_status_emoji(workflow.get('conclusion', 'in_progress'))
+        # Base information
+        workflow_name = escape_markdown(workflow.get('name', 'Unknown Workflow'))
+        run_number = workflow.get('run_number', '#')
+        event_type = escape_markdown(workflow.get('event', 'workflow_dispatch'))
+        event_url = workflow.get('html_url', '')  # Lấy URL từ JSON trả về để không hardcode
+        duration = compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))
 
-        # Base information about the workflow run
-        workflow_name = workflow.get('workflow_name', 'Unknown Workflow')
-        message = f"{workflow_status_emoji} *{workflow_name}*\n"  # Line status on the left
+        # Author information
+        author_name = escape_markdown(workflow['actor']['login'])
+        author_avatar_url = workflow['actor']['avatar_url']
+        author_url = workflow['actor']['html_url']
+
+        # Message header
+        message = f"🔔 *Github Actions Notification*\n\n"
         
-        # Adding pull request, push, or release information (event) and duration in the same line
-        event_type = workflow.get('event', 'unknown event')
-        event_url = workflow['html_url']  # URL to the workflow run
+        # Event information with dynamic workflow name and URL
+        message += f"`{event_type}`  [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
 
-        # Workflow duration
-        if 'completed_at' in workflow:
-            start_time = datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ')
-            end_time = datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
-            duration = compute_duration(start_time, end_time)
-            message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url}) | 🕒 *Completed in*: {duration}\n"
-        else:
-            total_duration = calculate_total_duration(jobs, current_job_name)
-            minutes, seconds = divmod(total_duration, 60)
-            message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url}) | 🕒 *Total duration so far*: {int(minutes)}m {int(seconds)}s\n"
+        # Author information
+        message += f"[{author_name}]({author_url})\\\n"
 
-        # Author information (display name and link) directly under event information
-        author = workflow['head_commit']['author']
-        author_name = author.get('name', 'Unknown Author')  # Fallback to 'Unknown Author' if name is missing
-        author_url = f"https://github.com/{author.get('username', author_name)}"
-        message += f"👤 *Author*: [{author_name}]({author_url})\n"
-
-        # Job details formatted in columns as a "table" simulation
-        message += f"\n*Job Details:*\n"
+        # Job details with icons and durations
         left_column = ""
         right_column = ""
         for i, job in enumerate(jobs['jobs']):
-            # Skip the current job (Telegram notification job)
             if job['name'] == current_job_name:
                 continue
+            job_name = escape_markdown(job['name'])
+            job_url = job['html_url']
+            job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
+            job_conclusion = job['conclusion']
+            job_icon = get_status_icon(job_conclusion)
 
-            job_icon = get_status_icon(job['conclusion'])
-            
-            # Ensure both 'started_at' and 'completed_at' exist before computing duration
-            if job.get('started_at') and job.get('completed_at'):
-                job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), 
-                                                datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
-            else:
-                job_duration = "Incomplete"  # If job hasn't completed yet
-
-            job_url = job['html_url']  # URL to job page
-            
-            # Format into two columns with simulated "table" using spacing
-            job_detail = f"{job_icon} [{job['name']}]({job_url}) ({job_duration})"
+            job_detail = f"{job_icon} [{job_name}]({job_url}) \\({job_duration}\\)"
             if i % 2 == 0:
-                left_column += f"{job_detail:<40} "  # Left column
+                left_column += f"{job_detail}\n"
             else:
-                right_column += f"{job_detail:<40}\n"  # Right column, new line after second job
+                right_column += f"{job_detail}\n"
 
-        # Combine left and right columns into "table"
-        message += f"{left_column} {right_column}\n"
+        # Combine columns and display in a "table-like" format
+        message += f"{left_column:<30} {right_column}\n\n"
 
-        # Repository information with the custom GitHub icon from the repository (using global variable)
+        # Repository information
         repo_url = workflow['repository']['html_url']
-        message += f"\n🐙 [Repository: {workflow['repository']['full_name']}]({repo_url})\n"
+        repo_name = escape_markdown(workflow['repository']['full_name'])
+        message += f"[\\[\\]\\({github_icon_url}\\) {repo_name}]({repo_url})"
 
         logging.info("Message formatted successfully.")
         return message
@@ -292,9 +278,7 @@ if __name__ == "__main__":
         # Fetch workflow run and job details
         logging.info("Fetching workflow run and job details...")
         workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
-        print(f"workflow_run: {workflow_run}")
         workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
-        print(f"workflow_jobs: {workflow_jobs}")
 
         # Format the message
         logging.info("Formatting the message...")
