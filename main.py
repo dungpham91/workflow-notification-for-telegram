@@ -253,7 +253,7 @@ def format_telegram_message(workflow, jobs, current_job_name):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
             # Add more spacing (e.g., 4 tabs) between the columns
-            message += f"{left}\t\t\t\t\t\t\t\t{right}\n\n"
+            message += f"{left}\t\t\t\t\t\t{right}\n\n"
 
         # Repository information (italic for "Repository")
         repo_url = workflow['repository']['html_url']
