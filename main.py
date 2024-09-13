@@ -198,22 +198,32 @@ def get_status_icon(conclusion):
         logging.error(f"Error mapping status icon: {str(e)}", exc_info=True)
         sys.exit(1)
 
+# Function to escape text for standard Markdown format
+def escape_markdown(text):
+    """ Escape characters for Telegram Markdown """
+    if text is None:
+        return ""
+    escape_chars = ['_', '*', '[', ']', '(', ')', '`', '.', '-']
+    for char in escape_chars:
+        text = text.replace(char, f"\\{char}")
+    return text
+
 # Function to format the message for Telegram
 def format_telegram_message(workflow, jobs, current_job_name):
     try:
         logging.info("Formatting the message for Telegram...")
 
         # Base information
-        workflow_name = workflow.get('name', 'Unknown Workflow')
-        run_number = str(workflow.get('run_number', '#'))
-        event_type = workflow.get('event', 'workflow_dispatch')
-        event_url = workflow.get('html_url', '')
+        workflow_name = escape_markdown(workflow.get('name', 'Unknown Workflow'))
+        run_number = escape_markdown(str(workflow.get('run_number', '#')))
+        event_type = escape_markdown(workflow.get('event', 'workflow_dispatch'))
+        event_url = escape_markdown(workflow.get('html_url', ''))
         duration = compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))
 
         # Author information
-        author_name = workflow['actor']['login']
-        author_avatar_url = workflow['actor']['avatar_url']
-        author_url = workflow['actor']['html_url']
+        author_name = escape_markdown(workflow['actor']['login'])
+        author_avatar_url = escape_markdown(workflow['actor']['avatar_url'])
+        author_url = escape_markdown(workflow['actor']['html_url'])
 
         # Message header
         message = f"🔔 *Github Actions Notification*\n\n"
@@ -231,8 +241,8 @@ def format_telegram_message(workflow, jobs, current_job_name):
         for i, job in enumerate(jobs['jobs']):
             if job['name'] == current_job_name:
                 continue
-            job_name = job['name']
-            job_url = job['html_url']
+            job_name = escape_markdown(job['name'])
+            job_url = escape_markdown(job['html_url'])
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
             job_conclusion = job['conclusion']
             job_icon = get_status_icon(job_conclusion)
@@ -247,8 +257,8 @@ def format_telegram_message(workflow, jobs, current_job_name):
         message += f"{left_column:<30} {right_column}\n\n"
 
         # Repository information
-        repo_url = workflow['repository']['html_url']
-        repo_name = workflow['repository']['full_name']
+        repo_url = escape_markdown(workflow['repository']['html_url'])
+        repo_name = escape_markdown(workflow['repository']['full_name'])
         message += f"[\\[\\]\\({github_icon_url}\\) {repo_name}]({repo_url})"
 
         logging.info("Message formatted successfully.")
