@@ -3,6 +3,10 @@ import requests
 import logging
 from datetime import datetime
 import sys
+import time
+from datetime import datetime, timezone
+
+current_time = datetime.now(timezone.utc)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -117,9 +121,9 @@ def calculate_total_duration(jobs, current_job_name):
                 continue
 
             # Ensure job has both 'started_at' and 'completed_at', and they are not None
-            if job.get('started_at') and job.get('completed_at'):
+            if job.get('started_at') and (job.get('completed_at') or job.get('updated_at')):
                 start_time = datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ')
-                end_time = datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
+                end_time = datetime.strptime(job.get('completed_at', job.get('updated_at')), '%Y-%m-%dT%H:%M:%SZ')
                 duration = (end_time - start_time).total_seconds()
                 total_duration += duration
             else:
@@ -234,10 +238,17 @@ def format_telegram_message(workflow, jobs, current_job_name):
         for i, job in enumerate(jobs['jobs']):
             if job['name'] == current_job_name:
                 continue
+
+            end_time = job.get('completed_at') or job.get('updated_at') or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            if not end_time:
+                logging.error(f"Job {job['name']} is missing end_time value, something wrong. Exit the action!!!")
+                sys.exit(1)
+
             job_name = job['name']
             job_url = job['html_url']
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), 
-                                            datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
+                                            datetime.strptime(end_time, '%Y-%m-%dT%H:%M:%SZ'))
             job_conclusion = job['conclusion']
             job_icon = get_status_icon(job_conclusion)
 
@@ -273,9 +284,8 @@ if __name__ == "__main__":
         # Load environment variables
         env = load_env_variables()
 
-        # Check connections to Telegram and GitHub API
-        check_telegram_connection(env['telegram_token'])
-        repo_info = check_github_access(env['github_token'], env['repo_name'])
+        # Sleep for 5 seconds to ensure GitHub API updates all job data
+        time.sleep(5)
 
         # Fetch workflow run and job details
         logging.info("Fetching workflow run and job details...")
