@@ -223,7 +223,7 @@ def format_telegram_message(workflow, jobs, current_job_name):
         message += f"🔄 `{event_type}` | ⚙️ Workflow [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
 
         # Author information
-        message += f"👤 [{author_name}]({author_url})\n\n"
+        message += f"[{author_avatar_url} {author_name}]({author_url})\n\n"
 
         # Job details with icons and durations
         message += "*Job Details:*\n"
@@ -246,7 +246,7 @@ def format_telegram_message(workflow, jobs, current_job_name):
                 right_column += f"{job_detail}\n"
 
         # Combine columns and display in a "table-like" format
-        message += f"{left_column:<30} {right_column}\n\n"
+        message += f"{left_column:<30} {right_column}\n"
 
         # Repository information
         repo_url = workflow['repository']['html_url']
