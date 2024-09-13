@@ -220,10 +220,10 @@ def format_telegram_message(workflow, jobs, current_job_name):
         message = f"🔔 *Github Actions Notification*\n\n"
 
         # Event information with dynamic workflow name and duration
-        message += f"`{event_type}`  [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
+        message += f"🔄 `{event_type}` | ⚙️ Workflow [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
 
         # Author information
-        message += f"[{author_name}]({author_url})\n\n"
+        message += f"👤 [{author_name}]({author_url})\n\n"
 
         # Job details with icons and durations
         message += "*Job Details:*\n"
@@ -251,7 +251,7 @@ def format_telegram_message(workflow, jobs, current_job_name):
         # Repository information
         repo_url = workflow['repository']['html_url']
         repo_name = workflow['repository']['full_name']
-        message += f"[{repo_name}]({repo_url})"
+        message += f"📦 [{repo_name}]({repo_url})"
 
         logging.info("Message formatted successfully.")
         return message
