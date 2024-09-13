@@ -223,12 +223,12 @@ def format_telegram_message(workflow, jobs, current_job_name):
         message += f"🔄 `{event_type}` | ⚙️ Workflow [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
 
         # Author information
-        message += f"[{author_avatar_url} {author_name}]({author_url})\n\n"
+        message += f"[👤 {author_name}]({author_url})\n\n"
 
         # Job details with icons and durations
         message += "*Job Details:*\n"
-        left_column = ""
-        right_column = ""
+        left_column = []
+        right_column = []
         for i, job in enumerate(jobs['jobs']):
             if job['name'] == current_job_name:
                 continue
@@ -241,12 +241,17 @@ def format_telegram_message(workflow, jobs, current_job_name):
 
             job_detail = f"{job_icon} [{job_name}]({job_url}) ({job_duration})"
             if i % 2 == 0:
-                left_column += f"{job_detail}\n"
+                left_column.append(job_detail)
             else:
-                right_column += f"{job_detail}\n"
+                right_column.append(job_detail)
 
-        # Combine columns and display in a "table-like" format
-        message += f"{left_column:<30} {right_column}\n"
+        # Format left and right columns with spacing between them
+        max_lines = max(len(left_column), len(right_column))
+        for i in range(max_lines):
+            left = left_column[i] if i < len(left_column) else ""
+            right = right_column[i] if i < len(right_column) else ""
+            # Add spacing between the columns
+            message += f"{left:<50} {right}\n"
 
         # Repository information
         repo_url = workflow['repository']['html_url']
