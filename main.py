@@ -292,7 +292,9 @@ if __name__ == "__main__":
         # Fetch workflow run and job details
         logging.info("Fetching workflow run and job details...")
         workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
+        print(f"workflow_run: {workflow_run}")
         workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
+        print(f"workflow_jobs: {workflow_jobs}")
 
         # Format the message
         logging.info("Formatting the message...")
