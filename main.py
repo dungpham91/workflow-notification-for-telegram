@@ -201,6 +201,8 @@ def get_status_icon(conclusion):
 # Function to escape text for MarkdownV2 format
 def escape_markdown(text):
     """ Escape characters for Telegram MarkdownV2 """
+    if text is None:
+        return ""
     escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
     for char in escape_chars:
         text = text.replace(char, f"\\{char}")
