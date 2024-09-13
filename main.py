@@ -102,6 +102,22 @@ def compute_duration(start_time, end_time):
         logging.error(f"Error computing duration: {str(e)}", exc_info=True)
         sys.exit(1)
 
+# Function to calculate total duration from jobs
+def calculate_total_duration(jobs):
+    try:
+        total_duration = 0
+        for job in jobs['jobs']:
+            # Ensure job has both 'started_at' and 'completed_at'
+            if 'started_at' in job and 'completed_at' in job:
+                start_time = datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ')
+                end_time = datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
+                duration = (end_time - start_time).total_seconds()
+                total_duration += duration
+        return total_duration
+    except Exception as e:
+        logging.error(f"Error calculating total duration: {str(e)}", exc_info=True)
+        sys.exit(1)
+
 # Function to get detailed information about a workflow run based on run_id
 def get_workflow_run(github_token, repo_name, run_id):
     try:
@@ -126,7 +142,6 @@ def get_workflow_run(github_token, repo_name, run_id):
     except Exception as e:
         logging.error(f"Failed to fetch workflow run: {str(e)}", exc_info=True)
         sys.exit(1)
-
 
 # Fetch job information from GitHub API
 def get_workflow_jobs(github_token, repo_name, run_id):
@@ -174,12 +189,22 @@ def get_status_icon(conclusion):
 def format_telegram_message(workflow, jobs):
     try:
         logging.info("Formatting the message for Telegram...")
-        
-        # Base information about the workflow run, kiểm tra nếu 'workflow_name' không tồn tại
+
+        # Base information about the workflow run
         workflow_name = workflow.get('workflow_name', 'Unknown Workflow')
         message = f"🔔 *{workflow_name}* \n\n"
-        message += f"💼 *Status*: {'Success' if workflow['conclusion'] == 'success' else 'Failure'}\n"
-        message += f"🕒 *Completed in*: {compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))}\n\n"
+        message += f"💼 *Status*: {'Success' if workflow.get('conclusion') == 'success' else 'In Progress'}\n"
+
+        # Check if 'completed_at' exists before calculating the duration
+        if 'completed_at' in workflow:
+            start_time = datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+            end_time = datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
+            message += f"🕒 *Completed in*: {compute_duration(start_time, end_time)}\n\n"
+        else:
+            # If workflow is still running, calculate the total duration of completed jobs
+            total_duration = calculate_total_duration(jobs)
+            minutes, seconds = divmod(total_duration, 60)
+            message += f"🕒 *Total duration so far*: {int(minutes)}m {int(seconds)}s\n\n"
 
         # Adding pull request, push, or release information
         event_type = workflow.get('event', 'unknown event')
