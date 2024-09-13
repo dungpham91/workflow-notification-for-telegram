@@ -221,14 +221,14 @@ def format_telegram_message(workflow, jobs, current_job_name):
         # Message header
         message = f"🔔 *Github Actions Notification*\n\n"
 
-        # Event information with dynamic workflow name and duration
-        message += f"🔄 Event: `{event_type}` | ⚙️ Workflow: [{workflow_display_name}]({event_url}) completed in *{duration}*\n\n"
+        # Event information with dynamic workflow name and duration (inline code for event_type and italic for labels)
+        message += f"🔄 *Event*: `{event_type}` | *⚙️ Workflow*: [{workflow_display_name}]({event_url}) *completed in* _{duration}_\n\n"
 
-        # Author information
-        message += f"[👤 Author: {author_name}]({author_url})\n\n"
+        # Author information (italic for "Author")
+        message += f"👤 *Author*: [{author_name}]({author_url})\n\n"
 
-        # Job details with icons and durations
-        message += "*Job Details:*\n"
+        # Job details with icons and durations (italic for "Job Details")
+        message += "*_Job Details_:* \n\n"
         left_column = []
         right_column = []
         for i, job in enumerate(jobs['jobs']):
@@ -253,12 +253,12 @@ def format_telegram_message(workflow, jobs, current_job_name):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
             # Add more spacing (e.g., 4 tabs) between the columns
-            message += f"{left}\t\t\t\t{right}\n\n"
+            message += f"{left}\t\t\t\t\t\t\t\t\t\t{right}\n\n"
 
-        # Repository information
+        # Repository information (italic for "Repository")
         repo_url = workflow['repository']['html_url']
         repo_name = workflow['repository']['full_name']
-        message += f"📦 Repository: [{repo_name}]({repo_url})"
+        message += f"📦 *Repository*: [{repo_name}]({repo_url})"
 
         logging.info("Message formatted successfully.")
         return message
