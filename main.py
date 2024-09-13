@@ -15,11 +15,12 @@ def load_env_variables():
             'chat_id': os.getenv('TELEGRAM_CHAT_ID'),
             'github_token': os.getenv('GITHUB_TOKEN'),
             'repo_name': os.getenv('GITHUB_REPOSITORY'),
-            'run_id': os.getenv('GITHUB_RUN_ID')
+            'run_id': os.getenv('GITHUB_RUN_ID'),
+            'current_job_name': os.getenv('GITHUB_JOB')  # Get the current job name
         }
         
         # Log environment variables for debugging purposes (excluding sensitive data)
-        logging.info(f"Loaded environment variables: REPO_NAME={env_vars['repo_name']}, RUN_ID={env_vars['run_id']}")
+        logging.info(f"Loaded environment variables: REPO_NAME={env_vars['repo_name']}, RUN_ID={env_vars['run_id']}, CURRENT_JOB_NAME={env_vars['current_job_name']}")
         
         return env_vars
     except Exception as e:
@@ -102,11 +103,16 @@ def compute_duration(start_time, end_time):
         logging.error(f"Error computing duration: {str(e)}", exc_info=True)
         sys.exit(1)
 
-# Function to calculate total duration from jobs
-def calculate_total_duration(jobs):
+# Function to calculate total duration from jobs, excluding the current job (Telegram notification job)
+def calculate_total_duration(jobs, current_job_name):
     try:
         total_duration = 0
         for job in jobs['jobs']:
+            # Skip the current job (Telegram notification job)
+            if job['name'] == current_job_name:
+                logging.info(f"Skipping current job '{current_job_name}' in duration calculation.")
+                continue
+
             # Ensure job has both 'started_at' and 'completed_at', and they are not None
             if job.get('started_at') and job.get('completed_at'):
                 start_time = datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ')
@@ -115,6 +121,7 @@ def calculate_total_duration(jobs):
                 total_duration += duration
             else:
                 logging.warning(f"Job {job['name']} has incomplete timing information, skipping...")
+
         return total_duration
     except Exception as e:
         logging.error(f"Error calculating total duration: {str(e)}", exc_info=True)
@@ -188,7 +195,7 @@ def get_status_icon(conclusion):
         sys.exit(1)
 
 # Format the message to be sent to Telegram
-def format_telegram_message(workflow, jobs):
+def format_telegram_message(workflow, jobs, current_job_name):
     try:
         logging.info("Formatting the message for Telegram...")
 
@@ -203,8 +210,8 @@ def format_telegram_message(workflow, jobs):
             end_time = datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
             message += f"🕒 *Completed in*: {compute_duration(start_time, end_time)}\n\n"
         else:
-            # If workflow is still running, calculate the total duration of completed jobs
-            total_duration = calculate_total_duration(jobs)
+            # If workflow is still running, calculate the total duration of completed jobs, excluding the current job
+            total_duration = calculate_total_duration(jobs, current_job_name)
             minutes, seconds = divmod(total_duration, 60)
             message += f"🕒 *Total duration so far*: {int(minutes)}m {int(seconds)}s\n\n"
 
@@ -216,8 +223,19 @@ def format_telegram_message(workflow, jobs):
         # Job details
         message += "*Job Details:*\n"
         for job in jobs['jobs']:
+            # Skip the current job from being printed
+            if job['name'] == current_job_name:
+                continue
+
             job_icon = get_status_icon(job['conclusion'])
-            job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
+            
+            # Ensure both 'started_at' and 'completed_at' exist before computing duration
+            if job.get('started_at') and job.get('completed_at'):
+                job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), 
+                                                datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
+            else:
+                job_duration = "Incomplete"  # If job hasn't completed yet
+            
             job_url = job['html_url']  # URL to job page
             message += f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
 
@@ -253,7 +271,7 @@ if __name__ == "__main__":
 
         # Format the message
         logging.info("Formatting the message...")
-        message = format_telegram_message(workflow_run, workflow_jobs)
+        message = format_telegram_message(workflow_run, workflow_jobs, env['current_job_name'])
 
         # Send the message to Telegram
         logging.info("Sending message to Telegram...")
