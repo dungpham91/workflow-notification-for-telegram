@@ -213,33 +213,34 @@ def format_telegram_message(workflow, jobs, current_job_name):
 
         # Base information
         workflow_name = escape_markdown(workflow.get('name', 'Unknown Workflow'))
-        run_number = workflow.get('run_number', '#')
+        run_number = escape_markdown(str(workflow.get('run_number', '#')))
         event_type = escape_markdown(workflow.get('event', 'workflow_dispatch'))
-        event_url = workflow.get('html_url', '')  # Lấy URL từ JSON trả về để không hardcode
+        event_url = escape_markdown(workflow.get('html_url', ''))
         duration = compute_duration(datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(workflow['updated_at'], '%Y-%m-%dT%H:%M:%SZ'))
 
         # Author information
         author_name = escape_markdown(workflow['actor']['login'])
-        author_avatar_url = workflow['actor']['avatar_url']
-        author_url = workflow['actor']['html_url']
+        author_avatar_url = escape_markdown(workflow['actor']['avatar_url'])
+        author_url = escape_markdown(workflow['actor']['html_url'])
 
         # Message header
         message = f"🔔 *Github Actions Notification*\n\n"
         
-        # Event information with dynamic workflow name and URL
+        # Event information with dynamic workflow name and duration
         message += f"`{event_type}`  [{workflow_name}]({event_url}) completed in *{duration}*\n\n"
 
         # Author information
         message += f"[{author_name}]({author_url})\\\n"
 
         # Job details with icons and durations
+        message += f"*Job Details:*\n"
         left_column = ""
         right_column = ""
         for i, job in enumerate(jobs['jobs']):
             if job['name'] == current_job_name:
                 continue
             job_name = escape_markdown(job['name'])
-            job_url = job['html_url']
+            job_url = escape_markdown(job['html_url'])
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
             job_conclusion = job['conclusion']
             job_icon = get_status_icon(job_conclusion)
@@ -249,12 +250,12 @@ def format_telegram_message(workflow, jobs, current_job_name):
                 left_column += f"{job_detail}\n"
             else:
                 right_column += f"{job_detail}\n"
-
+        
         # Combine columns and display in a "table-like" format
         message += f"{left_column:<30} {right_column}\n\n"
 
         # Repository information
-        repo_url = workflow['repository']['html_url']
+        repo_url = escape_markdown(workflow['repository']['html_url'])
         repo_name = escape_markdown(workflow['repository']['full_name'])
         message += f"[\\[\\]\\({github_icon_url}\\) {repo_name}]({repo_url})"
 
