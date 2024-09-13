@@ -228,6 +228,39 @@ def format_telegram_message(workflow, jobs, current_job_name):
         # Event information with dynamic workflow name and duration (inline code for event_type and italic for labels)
         message += f"🔄 _Event:_ `{event_type}` | ⚙️ _Workflow:_ [{workflow_display_name}]({event_url}) _completed in_ {duration}\n\n"
 
+        # Add event details line
+        if event_type == "pull_request":
+            pr_title = workflow.get("pull_requests", [{}])[0].get("title", "Unknown Pull Request")
+            pr_url = workflow.get("pull_requests", [{}])[0].get("html_url", "#")
+            message += f"🔗 [Pull Request: {pr_title}]({pr_url})\n\n"
+        elif event_type == "push":
+            commit_message = workflow.get("head_commit", {}).get("message", "No commit message")
+            commit_url = workflow.get("head_commit", {}).get("url", "#")
+            message += f"🔗 [Commit: {commit_message}]({commit_url})\n\n"
+        elif event_type == "release":
+            release_name = workflow.get("release", {}).get("tag_name", "No release tag")
+            release_url = workflow.get("release", {}).get("html_url", "#")
+            message += f"🔗 [Release: {release_name}]({release_url})\n\n"
+        elif event_type == "workflow_dispatch":
+            branch_name = workflow.get("head_branch", "No branch")
+            message += f"🔗 Workflow dispatched on branch: {branch_name}\n\n"
+        elif event_type == "create":
+            ref_type = workflow.get("ref_type", "No ref type")
+            ref_name = workflow.get("ref", "No ref name")
+            message += f"🔗 [Created: {ref_type}] {ref_name}\n\n"
+        elif event_type == "delete":
+            ref_type = workflow.get("ref_type", "No ref type")
+            ref_name = workflow.get("ref", "No ref name")
+            message += f"🗑️ [Deleted: {ref_type}] {ref_name}\n\n"
+        elif event_type == "repository_dispatch":
+            event_name = workflow.get("repository_dispatch", {}).get("action", "No event action")
+            message += f"🔗 Repository Dispatch event: {event_name}\n\n"
+        elif event_type == "schedule":
+            schedule = workflow.get("schedule", {}).get("cron", "No schedule")
+            message += f"⏰ Scheduled event with cron: {schedule}\n\n"
+        else:
+            message += "🔗 [Event details]\n\n"
+
         # Author information (italic for "Author")
         message += f"👤 _Author:_ [{author_name}]({author_url})\n\n"
 
@@ -239,16 +272,10 @@ def format_telegram_message(workflow, jobs, current_job_name):
             if job['name'] == current_job_name:
                 continue
 
-            end_time = job.get('completed_at') or job.get('updated_at') or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-            if not end_time:
-                logging.error(f"Job {job['name']} is missing end_time value, something wrong. Exit the action!!!")
-                sys.exit(1)
-
             job_name = job['name']
             job_url = job['html_url']
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), 
-                                            datetime.strptime(end_time, '%Y-%m-%dT%H:%M:%SZ'))
+                                            datetime.strptime(job.get('completed_at') or job.get('updated_at') or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), '%Y-%m-%dT%H:%M:%SZ'))
             job_conclusion = job['conclusion']
             job_icon = get_status_icon(job_conclusion)
 
@@ -263,8 +290,8 @@ def format_telegram_message(workflow, jobs, current_job_name):
         for i in range(max_lines):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
-            # Add more spacing (e.g., 4 tabs) between the columns
-            message += f"{left}\t\t\t\t\t\t{right}\n\n"
+            # Add more spacing (e.g., 6 tabs) between the columns
+            message += f"{left.ljust(60)} {right}\n\n"
 
         # Repository information (italic for "Repository")
         repo_url = workflow['repository']['html_url']
