@@ -215,27 +215,31 @@ def format_telegram_message(workflow, jobs, current_job_name):
 
         # Base information about the workflow run
         workflow_name = workflow.get('workflow_name', 'Unknown Workflow')
-        message = f"{workflow_status_emoji} *{workflow_name}* \n\n"
-        message += f"💼 *Status*: {'Success' if workflow.get('conclusion') == 'success' else 'In Progress'}\n"
+        message = f"{workflow_status_emoji} *{workflow_name}*\n"  # Line status on the left
+        
+        # Adding pull request, push, or release information (event) and duration in the same line
+        event_type = workflow.get('event', 'unknown event')
+        event_url = workflow['html_url']  # URL to the workflow run
 
-        # Check if 'completed_at' exists before calculating the duration
+        # Workflow duration
         if 'completed_at' in workflow:
             start_time = datetime.strptime(workflow['created_at'], '%Y-%m-%dT%H:%M:%SZ')
             end_time = datetime.strptime(workflow['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
-            message += f"🕒 *Completed in*: {compute_duration(start_time, end_time)}\n\n"
+            duration = compute_duration(start_time, end_time)
+            message += f"{workflow_status_emoji} 🔖 *Event*: [{event_type.capitalize()}]({event_url}) | 🕒 *Completed in*: {duration}\n"
         else:
-            # If workflow is still running, calculate the total duration of completed jobs, excluding the current job
             total_duration = calculate_total_duration(jobs, current_job_name)
             minutes, seconds = divmod(total_duration, 60)
-            message += f"🕒 *Total duration so far*: {int(minutes)}m {int(seconds)}s\n\n"
+            message += f"{workflow_status_emoji} 🔖 *Event*: [{event_type.capitalize()}]({event_url}) | 🕒 *Total duration so far*: {int(minutes)}m {int(seconds)}s\n"
 
-        # Adding pull request, push, or release information
-        event_type = workflow.get('event', 'unknown event')
-        event_url = workflow['html_url']  # URL to the workflow run
-        message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url})\n\n"
+        # Author information (display name and link) directly under event information
+        author = workflow['head_commit']['author']
+        author_name = author['name']
+        author_url = f"https://github.com/{author['username']}"
+        message += f"{workflow_status_emoji} 👤 *[Author: {author_name}]({author_url})*\n"
 
         # Job details formatted in columns
-        message += "*Job Details:*\n"
+        message += f"{workflow_status_emoji} *Job Details:*\n"
         left_column = ""
         right_column = ""
         for i, job in enumerate(jobs['jobs']):
@@ -251,26 +255,23 @@ def format_telegram_message(workflow, jobs, current_job_name):
                                                 datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
             else:
                 job_duration = "Incomplete"  # If job hasn't completed yet
-            
+
             job_url = job['html_url']  # URL to job page
             
             # Format into two columns
             job_detail = f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
             if i % 2 == 0:
-                left_column += job_detail
+                left_column += f"{workflow_status_emoji} {job_detail}"
             else:
-                right_column += job_detail
+                right_column += f"{workflow_status_emoji} {job_detail}"
 
         # Combine left and right columns into two-column format
-        message += f"{left_column:<20} {right_column:<20}\n"
+        message += f"{left_column:<40} {right_column:<40}\n"
 
-        # Author information (e.g., who initiated the run)
-        author = workflow['head_commit']['author']['name']
-        message += f"\n👤 *Author*: {author}\n"
-
-        # Adding repository link in footer
+        # Repository information with the custom GitHub icon from the repository
+        github_icon_url = "https://raw.githubusercontent.com/dungpham91/telegram-workflow-notification/dev/assets/github.png"
         repo_url = workflow['repository']['html_url']
-        message += f"\n🔗 [Repository: {workflow['repository']['full_name']}]({repo_url})\n"
+        message += f"{workflow_status_emoji} ![GitHub Icon]({github_icon_url}) [{workflow['repository']['full_name']}]({repo_url})\n"
 
         logging.info("Message formatted successfully.")
         return message
