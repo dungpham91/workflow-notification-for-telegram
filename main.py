@@ -194,14 +194,28 @@ def get_status_icon(conclusion):
         logging.error(f"Error mapping status icon: {str(e)}", exc_info=True)
         sys.exit(1)
 
+# Function to get workflow status line emoji based on conclusion
+def get_workflow_status_emoji(conclusion):
+    if conclusion == "success":
+        return "🟩"  # Green line emoji for success
+    elif conclusion == "failure":
+        return "🟥"  # Red line emoji for failure
+    elif conclusion == "cancelled":
+        return "⬜"  # Grey line emoji for cancelled
+    else:
+        return "🟦"  # Blue line emoji for in-progress (changed from yellow)
+
 # Format the message to be sent to Telegram
 def format_telegram_message(workflow, jobs, current_job_name):
     try:
         logging.info("Formatting the message for Telegram...")
 
+        # Determine the overall workflow status emoji
+        workflow_status_emoji = get_workflow_status_emoji(workflow.get('conclusion', 'in_progress'))
+
         # Base information about the workflow run
         workflow_name = workflow.get('workflow_name', 'Unknown Workflow')
-        message = f"🔔 *{workflow_name}* \n\n"
+        message = f"{workflow_status_emoji} *{workflow_name}* \n\n"
         message += f"💼 *Status*: {'Success' if workflow.get('conclusion') == 'success' else 'In Progress'}\n"
 
         # Check if 'completed_at' exists before calculating the duration
@@ -220,10 +234,12 @@ def format_telegram_message(workflow, jobs, current_job_name):
         event_url = workflow['html_url']  # URL to the workflow run
         message += f"🔖 *Event*: [{event_type.capitalize()}]({event_url})\n\n"
 
-        # Job details
+        # Job details formatted in columns
         message += "*Job Details:*\n"
-        for job in jobs['jobs']:
-            # Skip the current job from being printed
+        left_column = ""
+        right_column = ""
+        for i, job in enumerate(jobs['jobs']):
+            # Skip the current job (Telegram notification job)
             if job['name'] == current_job_name:
                 continue
 
@@ -237,7 +253,16 @@ def format_telegram_message(workflow, jobs, current_job_name):
                 job_duration = "Incomplete"  # If job hasn't completed yet
             
             job_url = job['html_url']  # URL to job page
-            message += f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
+            
+            # Format into two columns
+            job_detail = f"{job_icon} [{job['name']}]({job_url}) ({job_duration})\n"
+            if i % 2 == 0:
+                left_column += job_detail
+            else:
+                right_column += job_detail
+
+        # Combine left and right columns into two-column format
+        message += f"{left_column:<20} {right_column:<20}\n"
 
         # Author information (e.g., who initiated the run)
         author = workflow['head_commit']['author']['name']
