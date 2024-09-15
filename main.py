@@ -3,16 +3,9 @@ import requests
 import logging
 from datetime import datetime
 import sys
-import time
-from datetime import datetime, timezone
-
-current_time = datetime.now(timezone.utc)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Global variable for GitHub icon URL
-github_icon_url = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
 
 # Global function to load environment variables
 def load_env_variables():
@@ -121,9 +114,9 @@ def calculate_total_duration(jobs, current_job_name):
                 continue
 
             # Ensure job has both 'started_at' and 'completed_at', and they are not None
-            if job.get('started_at') and (job.get('completed_at') or job.get('updated_at')):
+            if job.get('started_at') and job.get('completed_at'):
                 start_time = datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ')
-                end_time = datetime.strptime(job.get('completed_at', job.get('updated_at')), '%Y-%m-%dT%H:%M:%SZ')
+                end_time = datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
                 duration = (end_time - start_time).total_seconds()
                 total_duration += duration
             else:
@@ -192,7 +185,6 @@ def get_status_icon(conclusion):
             "failure": "❌",
             "cancelled": "🚫",
             "skipped": "⏭️",
-            "in_progress": "⏳",
             "timed_out": "⏰",
             "neutral": "⚪",
             "action_required": "⚠️"
@@ -202,7 +194,18 @@ def get_status_icon(conclusion):
         logging.error(f"Error mapping status icon: {str(e)}", exc_info=True)
         sys.exit(1)
 
-# Function to format the message for Telegram
+# Function to get workflow status line emoji based on conclusion
+def get_workflow_status_emoji(conclusion):
+    if conclusion == "success":
+        return "🟩"  # Green line emoji for success
+    elif conclusion == "failure":
+        return "🟥"  # Red line emoji for failure
+    elif conclusion == "cancelled":
+        return "⬜"  # Grey line emoji for cancelled
+    else:
+        return "🟦"  # Blue line emoji for in-progress (changed from yellow)
+
+# Format the message to be sent to Telegram
 def format_telegram_message(workflow, jobs, current_job_name):
     try:
         logging.info("Formatting the message for Telegram...")
@@ -230,34 +233,38 @@ def format_telegram_message(workflow, jobs, current_job_name):
 
         # Add event details line
         if event_type == "pull_request":
-            pr_title = workflow.get("pull_requests", [{}])[0].get("title", "Unknown Pull Request")
-            pr_url = workflow.get("pull_requests", [{}])[0].get("html_url", "#")
+            pr = workflow.get("pull_requests", [{}])[0]
+            pr_title = pr.get("title", "Unknown Pull Request")
+            pr_url = pr.get("html_url", event_url)  # Use pull request URL or fallback to the workflow URL
             message += f"🔗 [Pull Request: {pr_title}]({pr_url})\n\n"
         elif event_type == "push":
             commit_message = workflow.get("head_commit", {}).get("message", "No commit message")
-            commit_url = workflow.get("head_commit", {}).get("url", "#")
-            message += f"🔗 [Commit: {commit_message}]({commit_url})\n\n"
+            commit_url = f"{workflow['repository']['html_url']}/commit/{workflow.get('head_commit', {}).get('id', '')}"
+            # Display commit message with URL
+            message += f"📝 [Commit: {commit_message}]({commit_url})\n\n"
         elif event_type == "release":
             release_name = workflow.get("release", {}).get("tag_name", "No release tag")
-            release_url = workflow.get("release", {}).get("html_url", "#")
+            release_url = workflow.get("release", {}).get("html_url", event_url)
             message += f"🔗 [Release: {release_name}]({release_url})\n\n"
         elif event_type == "workflow_dispatch":
             branch_name = workflow.get("head_branch", "No branch")
-            message += f"🔗 Workflow dispatched on branch: {branch_name}\n\n"
+            message += f"🔗 Workflow dispatched on branch: `{branch_name}`\n\n"
         elif event_type == "create":
             ref_type = workflow.get("ref_type", "No ref type")
             ref_name = workflow.get("ref", "No ref name")
-            message += f"🔗 [Created: {ref_type}] {ref_name}\n\n"
+            ref_url = f"{workflow['repository']['html_url']}/tree/{ref_name}"
+            message += f"🔗 [Created: {ref_type}]({ref_url}) {ref_name}\n\n"
         elif event_type == "delete":
             ref_type = workflow.get("ref_type", "No ref type")
             ref_name = workflow.get("ref", "No ref name")
-            message += f"🗑️ [Deleted: {ref_type}] {ref_name}\n\n"
+            # No specific URL for delete, use repository URL as fallback
+            message += f"🗑️ Deleted: {ref_type} `{ref_name}`\n\n"
         elif event_type == "repository_dispatch":
             event_name = workflow.get("repository_dispatch", {}).get("action", "No event action")
-            message += f"🔗 Repository Dispatch event: {event_name}\n\n"
+            message += f"🔗 Repository Dispatch event: `{event_name}`\n\n"
         elif event_type == "schedule":
             schedule = workflow.get("schedule", {}).get("cron", "No schedule")
-            message += f"⏰ Scheduled event with cron: {schedule}\n\n"
+            message += f"⏰ Scheduled event with cron: `{schedule}`\n\n"
         else:
             message += "🔗 [Event details]\n\n"
 
@@ -268,14 +275,14 @@ def format_telegram_message(workflow, jobs, current_job_name):
         message += "_Job Details:_ \n\n"
         left_column = []
         right_column = []
-        for i, job in enumerate(jobs['jobs']):
-            if job['name'] == current_job_name:
-                continue
 
+        # Filter out the telegram notification job and prepare columns
+        filtered_jobs = [job for job in jobs['jobs'] if job['name'] != current_job_name]
+        for i, job in enumerate(filtered_jobs):
             job_name = job['name']
             job_url = job['html_url']
             job_duration = compute_duration(datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ'), 
-                                            datetime.strptime(job.get('completed_at') or job.get('updated_at') or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), '%Y-%m-%dT%H:%M:%SZ'))
+                                            datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ'))
             job_conclusion = job['conclusion']
             job_icon = get_status_icon(job_conclusion)
 
@@ -285,18 +292,22 @@ def format_telegram_message(workflow, jobs, current_job_name):
             else:
                 right_column.append(job_detail)
 
-        # Format left and right columns with more space between them
+        # Calculate the spacing for columns based on the longest job detail in the left column
+        max_left_width = max(len(detail) for detail in left_column) if left_column else 0
+        format_string = f"{{:<{max_left_width + 4}}} {{}}"  # Add some padding to the right
+
+        # Format left and right columns with proper spacing
         max_lines = max(len(left_column), len(right_column))
         for i in range(max_lines):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
-            # Add more spacing (e.g., 6 tabs) between the columns
-            message += f"{left.ljust(60)} {right}\n\n"
+            # Add more spacing between the columns
+            message += format_string.format(left, right) + "\n"
 
         # Repository information (italic for "Repository")
         repo_url = workflow['repository']['html_url']
         repo_name = workflow['repository']['full_name']
-        message += f"📦 _Repository:_ [{repo_name}]({repo_url})"
+        message += f"\n📦 _Repository:_ [{repo_name}]({repo_url})"
 
         logging.info("Message formatted successfully.")
         return message
@@ -311,8 +322,9 @@ if __name__ == "__main__":
         # Load environment variables
         env = load_env_variables()
 
-        # Sleep for 5 seconds to ensure GitHub API updates all job data
-        time.sleep(5)
+        # Check connections to Telegram and GitHub API
+        check_telegram_connection(env['telegram_token'])
+        repo_info = check_github_access(env['github_token'], env['repo_name'])
 
         # Fetch workflow run and job details
         logging.info("Fetching workflow run and job details...")
