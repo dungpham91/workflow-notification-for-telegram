@@ -8,19 +8,46 @@ import sys
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Global constants for Telegram API
+TELEGRAM_API_URL = "https://api.telegram.org/bot{telegram_token}/getMe"
+TELEGRAM_SEND_MESSAGE_URL = "https://api.telegram.org/bot{telegram_token}/sendMessage"
+TELEGRAM_PAYLOAD_TEMPLATE = {
+    'chat_id': '{chat_id}',
+    'text': '{message}',
+    'parse_mode': 'Markdown'
+}
+
+# Global constants for GitHub API
+GITHUB_API_URL = 'https://api.github.com/repos/{repo_name}'
+GITHUB_WORKFLOW_RUN_URL = "https://api.github.com/repos/{repo_name}/actions/runs/{run_id}"
+GITHUB_WORKFLOW_JOBS_URL = "https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/jobs"
+GITHUB_HEADERS_TEMPLATE = {
+    'Authorization': 'token {github_token}',
+    'Accept': 'application/vnd.github.v3+json'
+}
+MAX_ATTEMPTS = 5
+SLEEP_INTERVAL = 5  # seconds
+
 def load_env_variables():
     """Loads required environment variables and logs them (excluding sensitive data)."""
     try:
         env_vars = {
-            'telegram_token': os.getenv('TELEGRAM_TOKEN'),
             'chat_id': os.getenv('TELEGRAM_CHAT_ID'),
+            'current_job_id': os.getenv('GITHUB_JOB_ID'),
+            'current_job_name': os.getenv('GITHUB_JOB'),
             'github_token': os.getenv('GITHUB_TOKEN'),
             'repo_name': os.getenv('GITHUB_REPOSITORY'),
             'run_id': os.getenv('GITHUB_RUN_ID'),
-            'current_job_name': os.getenv('GITHUB_JOB')
+            'telegram_token': os.getenv('TELEGRAM_TOKEN'),
         }
 
-        logging.info(f"Loaded env vars: REPO_NAME={env_vars['repo_name']}, RUN_ID={env_vars['run_id']}, CURRENT_JOB_NAME={env_vars['current_job_name']}")
+        logging.info(
+            f"Loaded env vars: "
+            f"REPO_NAME={env_vars['repo_name']}, "
+            f"RUN_ID={env_vars['run_id']}, "
+            f"CURRENT_JOB_NAME={env_vars['current_job_name']}, "
+            f"CURRENT_JOB_ID={env_vars['current_job_id']}"
+        )
         return env_vars
     except KeyError as e:
         logging.error(f"Missing required environment variable: {e}", exc_info=True)
@@ -33,7 +60,7 @@ def check_telegram_connection(telegram_token):
     """Checks the connection to the Telegram API and logs the result."""
     try:
         logging.info("Checking Telegram connection...")
-        url = f"https://api.telegram.org/bot{telegram_token}/getMe"
+        url = TELEGRAM_API_URL.format(telegram_token=telegram_token)
         response = requests.get(url)
         logging.info(f"Telegram API request URL: {url}")  # Log the request URL
         logging.info(f"Telegram API response status code: {response.status_code}") # Log the response status code
@@ -47,11 +74,11 @@ def check_github_access(github_token, repo_name):
     """Checks GitHub API access and logs the result."""
     try:
         logging.info("Checking GitHub API access...")
-        headers = {'Authorization': f'token {github_token}', 'Accept': 'application/vnd.github.v3+json'}
-        url = f'https://api.github.com/repos/{repo_name}'
+        headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
+        url = GITHUB_API_URL.format(repo_name=repo_name)
         response = requests.get(url, headers=headers)
         logging.info(f"GitHub API request URL: {url}")  # Log the request URL
-        logging.info(f"GitHub API response status code: {response.status_code}") # Log the response status code
+        logging.info(f"GitHub API response status code: {response.status_code}")  # Log the response status code
         response.raise_for_status()
         repo_info = response.json()
         logging.info(f"GitHub API access successful. Repo name: {repo_info['full_name']}")
@@ -64,11 +91,14 @@ def send_telegram_message(telegram_token, chat_id, message):
     """Sends a Telegram message and logs the result."""
     try:
         logging.info("Sending message to Telegram...")
-        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-        payload = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
+        url = TELEGRAM_SEND_MESSAGE_URL.format(telegram_token=telegram_token)  # Use the global URL with formatting
+        payload = {
+            key: value.format(chat_id=chat_id, message=message)
+            for key, value in TELEGRAM_PAYLOAD_TEMPLATE.items()
+        }
         response = requests.post(url, json=payload)
         logging.info(f"Telegram API request URL: {url}")  # Log the request URL
-        logging.info(f"Telegram API response status code: {response.status_code}") # Log the response status code
+        logging.info(f"Telegram API response status code: {response.status_code}")  # Log the response status code
         response.raise_for_status()
         logging.info("Message sent successfully to Telegram.")
     except requests.exceptions.RequestException as e:
@@ -95,8 +125,8 @@ def get_workflow_run(github_token, repo_name, run_id):
     """Retrieves workflow run information and logs the process."""
     try:
         logging.info(f"Fetching workflow run {run_id} information...")
-        headers = {'Authorization': f'token {github_token}', 'Accept': 'application/vnd.github.v3+json'}
-        url = f'https://api.github.com/repos/{repo_name}/actions/runs/{run_id}'
+        headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
+        url = GITHUB_WORKFLOW_RUN_URL.format(repo_name=repo_name, run_id=run_id)  # Use the global URL with formatting
 
         response = requests.get(url, headers=headers)
         logging.info(f"GitHub API request URL: {url}")
@@ -116,24 +146,21 @@ def get_workflow_jobs(github_token, repo_name, run_id):
     """
     try:
         logging.info("Fetching workflow job information...")
-        headers = {'Authorization': f'token {github_token}', 'Accept': 'application/vnd.github.v3+json'}
-        url = f'https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/jobs'
-        current_job_id = os.getenv('GITHUB_JOB_ID') # get the ID of the current job
+        headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
+        url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)  # Use the global URL with formatting
 
         attempts = 0
-        max_attempts = 5
-        while attempts < max_attempts:
+        while attempts < MAX_ATTEMPTS:
             response = requests.get(url, headers=headers)
             try:
                 response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
             except requests.exceptions.HTTPError as e:
                 logging.error(f"Error fetching job status: {e}")
-                # Có thể bạn muốn xử lý lỗi cụ thể hơn ở đây, ví dụ như retry sau một khoảng thời gian
                 return None
 
             jobs_data = response.json()
 
-            # Liệt kê tất cả các job và trạng thái
+            # List all job statuses
             logging.info("Current job statuses:")
             for job in jobs_data['jobs']:
                 job_id = job.get('id')
@@ -149,7 +176,7 @@ def get_workflow_jobs(github_token, repo_name, run_id):
                 return jobs_data
             else:
                 logging.info(f"Waiting for {len(pending_jobs)} job(s) to complete...")
-                time.sleep(5)
+                time.sleep(SLEEP_INTERVAL)
                 attempts += 1
     except requests.exceptions.RequestException as e:
         logging.error(f"Failed to fetch workflow jobs: {e}", exc_info=True)
@@ -197,7 +224,7 @@ def get_workflow_status_emoji(conclusion):
     else:
         return "🟦"
 
-def format_telegram_message(workflow, jobs, current_job_name):
+def format_telegram_message(workflow, jobs, current_job_id):
     """Formats the Telegram message with detailed workflow and job information."""
     try:
         logging.info("Formatting the message for Telegram...")
@@ -308,7 +335,7 @@ def format_telegram_message(workflow, jobs, current_job_name):
         repo_url = workflow.get('repository', {}).get('html_url', '')
         repo_name = workflow.get('repository', {}).get('full_name', 'Unknown Repository')
         message += f"\n📦 _Repository:_ [{repo_name}]({repo_url})\n\n" # Added new line for better formatting
-        total_duration = calculate_total_duration(jobs, current_job_name)
+        total_duration = calculate_total_duration(jobs, current_job_id)
         message += f"⏱️ _Total Workflow Duration (excluding this notification):_ {str(total_duration)}"
 
         logging.info("Message formatted successfully.")
