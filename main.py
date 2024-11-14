@@ -33,7 +33,6 @@ def load_env_variables():
     try:
         env_vars = {
             'chat_id': os.getenv('TELEGRAM_CHAT_ID'),
-            'current_job_id': os.getenv('GITHUB_JOB_ID'),
             'current_job_name': os.getenv('GITHUB_JOB'),
             'github_token': os.getenv('GITHUB_TOKEN'),
             'repo_name': os.getenv('GITHUB_REPOSITORY'),
@@ -45,8 +44,7 @@ def load_env_variables():
             f"Loaded env vars: "
             f"REPO_NAME={env_vars['repo_name']}, "
             f"RUN_ID={env_vars['run_id']}, "
-            f"CURRENT_JOB_NAME={env_vars['current_job_name']}, "
-            f"CURRENT_JOB_ID={env_vars['current_job_id']}"
+            f"CURRENT_JOB_NAME={env_vars['current_job_name']}"
         )
         return env_vars
     except KeyError as e:
@@ -140,7 +138,7 @@ def get_workflow_run(github_token, repo_name, run_id):
         logging.error(f"Failed to fetch workflow run: {e}", exc_info=True)
         sys.exit(1)
 
-def get_workflow_jobs(github_token, repo_name, run_id):
+def get_workflow_jobs(github_token, repo_name, run_id, current_id_job):
     """Retrieves workflow job information, waits for other jobs to complete, and logs the process.
        Excludes the current job (notify-telegram) based on its ID.
     """
@@ -148,6 +146,7 @@ def get_workflow_jobs(github_token, repo_name, run_id):
         logging.info("Fetching workflow job information...")
         headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
         url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)  # Use the global URL with formatting
+        current_id_job = current_id_job
 
         attempts = 0
         while attempts < MAX_ATTEMPTS:
@@ -348,13 +347,15 @@ if __name__ == "__main__":
     try:
         logging.info("Starting Telegram notification action...")
 
-        env = load_env_variables()
         current_job_id = os.getenv('GITHUB_JOB_ID')
+        logging.info(f"CURRENT_JOB_ID: {current_job_id}")
+
+        env = load_env_variables()
         check_telegram_connection(env['telegram_token'])
         check_github_access(env['github_token'], env['repo_name'])
         workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
-        workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
-        message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)  # Pass current_job_id
+        workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'], current_job_id)
+        message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)
         send_telegram_message(env['telegram_token'], env['chat_id'], message)
 
         logging.info("Telegram notification action completed successfully.")
