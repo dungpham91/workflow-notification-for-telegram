@@ -186,13 +186,17 @@ def get_current_job_id(github_token, repo_name, run_id, job_name):
         headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
         url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)
         response = requests.get(url, headers=headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        except requests.exceptions.HTTPError as e:
+            logging.error(f"Error fetching job status: {e}")
+            return None
         
-        jobs = response.json().get('jobs', [])
-        logging.info(f"All jobs: {jobs}")
+        jobs_data = response.json()
+        logging.info(f"All jobs: {jobs_data}")
         
         # Find the job with the matching name
-        for job in jobs:
+        for job in jobs_data['jobs']:
             if job.get('name') == job_name:
                 return job.get('id')
         
