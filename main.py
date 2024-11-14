@@ -138,15 +138,14 @@ def get_workflow_run(github_token, repo_name, run_id):
         logging.error(f"Failed to fetch workflow run: {e}", exc_info=True)
         sys.exit(1)
 
-def get_workflow_jobs(github_token, repo_name, run_id, current_id_job):
+def get_workflow_jobs(github_token, repo_name, run_id, current_job_id):
     """Retrieves workflow job information, waits for other jobs to complete, and logs the process.
        Excludes the current job (notify-telegram) based on its ID.
     """
     try:
         logging.info("Fetching workflow job information...")
         headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
-        url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)  # Use the global URL with formatting
-        current_id_job = current_id_job
+        url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)
 
         attempts = 0
         while attempts < MAX_ATTEMPTS:
@@ -179,6 +178,27 @@ def get_workflow_jobs(github_token, repo_name, run_id, current_id_job):
                 attempts += 1
     except requests.exceptions.RequestException as e:
         logging.error(f"Failed to fetch workflow jobs: {e}", exc_info=True)
+        sys.exit(1)
+
+def get_current_job_id(github_token, repo_name, run_id, job_name):
+    """Retrieves the current job ID based on the job name."""
+    try:
+        headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
+        url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        jobs = response.json().get('jobs', [])
+        
+        # Find the job with the matching name
+        for job in jobs:
+            if job.get('name') == job_name:
+                return job.get('id')
+        
+        logging.error(f"Job '{job_name}' not found in workflow run {run_id}.")
+        return None
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to fetch job ID: {e}", exc_info=True)
         sys.exit(1)
 
 def calculate_total_duration(jobs, current_job_id):
@@ -347,12 +367,13 @@ if __name__ == "__main__":
     try:
         logging.info("Starting Telegram notification action...")
 
-        current_job_id = os.getenv('GITHUB_JOB_ID')
-        logging.info(f"CURRENT_JOB_ID: {current_job_id}")
-
         env = load_env_variables()
         check_telegram_connection(env['telegram_token'])
         check_github_access(env['github_token'], env['repo_name'])
+
+        current_job_id = get_current_job_id(env['github_token'], env['repo_name'], env['run_id'], env['current_job_name'])
+        logging.info(f"Current job id: {current_job_id}")
+
         workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
         workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'], current_job_id)
         message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)
