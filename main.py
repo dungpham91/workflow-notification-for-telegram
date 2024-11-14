@@ -376,10 +376,11 @@ if __name__ == "__main__":
         check_telegram_connection(env['telegram_token'])
         check_github_access(env['github_token'], env['repo_name'])
 
+        workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
+
         current_job_id = get_current_job_id(env['github_token'], env['repo_name'], env['run_id'], env['current_job_name'])
         logging.info(f"Current job id: {current_job_id}")
-
-        workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
+        
         workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'], current_job_id)
         message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)
         send_telegram_message(env['telegram_token'], env['chat_id'], message)
