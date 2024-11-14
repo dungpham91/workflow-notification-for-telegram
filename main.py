@@ -189,6 +189,7 @@ def get_current_job_id(github_token, repo_name, run_id, job_name):
         response.raise_for_status()
         
         jobs = response.json().get('jobs', [])
+        logging.info(f"All jobs: {jobs}")
         
         # Find the job with the matching name
         for job in jobs:
