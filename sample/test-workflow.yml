@@ -1,0 +1,87 @@
+name: Test Telegram Workflow Notification
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  pull_request_target:
+  release:
+    types:
+      - created
+      - published
+  workflow_dispatch:
+  create:
+  delete:
+  repository_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Runs once daily
+
+jobs:
+  setup-environment:
+    name: Setup Environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production
+        run: |
+          sleep 2
+          echo "Setup Environment..."
+
+  install-dependencies:
+    name: Install Dependencies
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    steps:
+      - name: Deploy to production
+        run: |
+          sleep 2
+          echo "Install Dependencies..."
+
+  build:
+    name: Build Project
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - name: Deploy to production
+        run: |
+          sleep 2
+          echo "Build Project..."
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to production
+        run: |
+          sleep 2
+          echo "Run Tests..."
+
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Deploy to production
+        run: |
+          sleep 2
+          echo "Deploying application..."
+
+  notify-telegram:
+    name: Notify Telegram
+    if: always()
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+    - name: Send Telegram Notification
+      uses: dungpham91/telegram-workflow-notification@main
+      with:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

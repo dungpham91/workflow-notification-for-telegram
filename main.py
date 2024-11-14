@@ -181,7 +181,7 @@ def get_workflow_jobs(github_token, repo_name, run_id, current_job_id):
         sys.exit(1)
 
 def get_current_job_id(github_token, repo_name, run_id, job_name):
-    """Retrieves the current job ID based on the job name."""
+    """Retrieves the current job ID based on the job name, handling potential naming inconsistencies."""
     try:
         headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
         url = GITHUB_WORKFLOW_JOBS_URL.format(repo_name=repo_name, run_id=run_id)
@@ -193,15 +193,19 @@ def get_current_job_id(github_token, repo_name, run_id, job_name):
             return None
         
         jobs_data = response.json()
-        logging.info("All job IDs:")
-        for job in jobs_data['jobs']:
-            job_id = job.get('id')
-            status = job.get('status')
-            logging.info(f"  Job ID: {job_id}, Status: {status}")
         
-        # Find the job with the matching name
+        # Find the job with the matching name, considering potential naming variations:
+        # - Case-insensitive match
+        # - Removing any leading/trailing whitespace
+        # - Removing any special characters (e.g., "-", "_")
+        # - Removing spaces, removing leading/trailing whitespaces
         for job in jobs_data['jobs']:
-            if job.get('name') == job_name:
+            job_name_in_api = job.get('name', '').strip().lower()
+            job_name_in_api = ''.join(c for c in job_name_in_api if c.isalnum())  # Keep alphanumeric only
+            job_name_in_workflow = job_name.strip().lower()
+            job_name_in_workflow = ''.join(c for c in job_name_in_workflow if c.isalnum())
+
+            if job_name_in_api == job_name_in_workflow:
                 return job.get('id')
         
         logging.error(f"Job '{job_name}' not found in workflow run {run_id}.")
