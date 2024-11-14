@@ -60,8 +60,8 @@ def check_telegram_connection(telegram_token):
         logging.info("Checking Telegram connection...")
         url = TELEGRAM_API_URL.format(telegram_token=telegram_token)
         response = requests.get(url)
-        logging.info(f"Telegram API request URL: {url}")  # Log the request URL
-        logging.info(f"Telegram API response status code: {response.status_code}") # Log the response status code
+        logging.info(f"Telegram API request URL: {url}")
+        logging.info(f"Telegram API response status code: {response.status_code}")
         response.raise_for_status() # Raise an exception for bad status codes
         logging.info("Successfully connected to Telegram API.")
     except requests.exceptions.RequestException as e:
@@ -75,8 +75,8 @@ def check_github_access(github_token, repo_name):
         headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
         url = GITHUB_API_URL.format(repo_name=repo_name)
         response = requests.get(url, headers=headers)
-        logging.info(f"GitHub API request URL: {url}")  # Log the request URL
-        logging.info(f"GitHub API response status code: {response.status_code}")  # Log the response status code
+        logging.info(f"GitHub API request URL: {url}")
+        logging.info(f"GitHub API response status code: {response.status_code}")
         response.raise_for_status()
         repo_info = response.json()
         logging.info(f"GitHub API access successful. Repo name: {repo_info['full_name']}")
@@ -89,14 +89,14 @@ def send_telegram_message(telegram_token, chat_id, message):
     """Sends a Telegram message and logs the result."""
     try:
         logging.info("Sending message to Telegram...")
-        url = TELEGRAM_SEND_MESSAGE_URL.format(telegram_token=telegram_token)  # Use the global URL with formatting
+        url = TELEGRAM_SEND_MESSAGE_URL.format(telegram_token=telegram_token)
         payload = {
             key: value.format(chat_id=chat_id, message=message)
             for key, value in TELEGRAM_PAYLOAD_TEMPLATE.items()
         }
         response = requests.post(url, json=payload)
-        logging.info(f"Telegram API request URL: {url}")  # Log the request URL
-        logging.info(f"Telegram API response status code: {response.status_code}")  # Log the response status code
+        logging.info(f"Telegram API request URL: {url}")
+        logging.info(f"Telegram API response status code: {response.status_code}")
         response.raise_for_status()
         logging.info("Message sent successfully to Telegram.")
     except requests.exceptions.RequestException as e:
@@ -124,7 +124,7 @@ def get_workflow_run(github_token, repo_name, run_id):
     try:
         logging.info(f"Fetching workflow run {run_id} information...")
         headers = {key: value.format(github_token=github_token) for key, value in GITHUB_HEADERS_TEMPLATE.items()}
-        url = GITHUB_WORKFLOW_RUN_URL.format(repo_name=repo_name, run_id=run_id)  # Use the global URL with formatting
+        url = GITHUB_WORKFLOW_RUN_URL.format(repo_name=repo_name, run_id=run_id)
 
         response = requests.get(url, headers=headers)
         logging.info(f"GitHub API request URL: {url}")
@@ -193,7 +193,11 @@ def get_current_job_id(github_token, repo_name, run_id, job_name):
             return None
         
         jobs_data = response.json()
-        logging.info(f"All jobs: {jobs_data}")
+        logging.info("All job IDs:")
+        for job in jobs_data['jobs']:
+            job_id = job.get('id')
+            status = job.get('status')
+            logging.info(f"  Job ID: {job_id}, Status: {status}")
         
         # Find the job with the matching name
         for job in jobs_data['jobs']:
@@ -380,7 +384,7 @@ if __name__ == "__main__":
 
         current_job_id = get_current_job_id(env['github_token'], env['repo_name'], env['run_id'], env['current_job_name'])
         logging.info(f"Current job id: {current_job_id}")
-        
+
         workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'], current_job_id)
         message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)
         send_telegram_message(env['telegram_token'], env['chat_id'], message)
