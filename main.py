@@ -349,13 +349,11 @@ if __name__ == "__main__":
         logging.info("Starting Telegram notification action...")
 
         env = load_env_variables()
+        current_job_id = os.getenv('GITHUB_JOB_ID')
         check_telegram_connection(env['telegram_token'])
         check_github_access(env['github_token'], env['repo_name'])
-
         workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
         workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
-        current_job_id = os.getenv('GITHUB_JOB_ID')
-
         message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)  # Pass current_job_id
         send_telegram_message(env['telegram_token'], env['chat_id'], message)
 
