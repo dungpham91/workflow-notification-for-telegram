@@ -282,7 +282,7 @@ def format_telegram_message(workflow, jobs, current_job_id):
         workflow_status_emoji = get_workflow_status_emoji(workflow_conclusion)
 
         # Start building the message
-        message = f"{workflow_status_emoji} *Github Actions Notification*\n\n"
+        message = f"{workflow_status_emoji} *GITHUB ACTIONS NOTIFICATION*\n\n"
         message += f"🔄 _Event:_ `{event_type}` | ⚙️ _Workflow:_ [{workflow_display_name}]({event_url}) _completed in_ {duration}\n\n"
 
         # Add event details based on event type
@@ -324,6 +324,8 @@ def format_telegram_message(workflow, jobs, current_job_id):
 
         message += f"👤 _Author:_ [{author_name}]({author_url})\n\n"
         message += "_Job Details:_ \n\n"
+        
+        # Create two lists to store the job details for each column
         left_column = []
         right_column = []
 
@@ -355,14 +357,20 @@ def format_telegram_message(workflow, jobs, current_job_id):
             else:
                 right_column.append(job_detail)
 
+        # Calculate the maximum width of the left column
         max_left_width = max(len(detail) for detail in left_column) if left_column else 0
+
+        # Define the format string for aligning the columns
         format_string = f"{{:<{max_left_width + 4}}} {{}}"
+
+        # Get the maximum number of lines in either column
         max_lines = max(len(left_column), len(right_column))
 
+        # Format the message with two columns
         for i in range(max_lines):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
-            message += format_string.format(left, right) + "\n"
+            message += format_string.format(left, right) + "\n"  # Add a newline after each row
 
         repo_url = workflow.get('repository', {}).get('html_url', '')
         repo_name = workflow.get('repository', {}).get('full_name', 'Unknown Repository')
