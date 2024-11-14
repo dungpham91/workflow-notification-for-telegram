@@ -362,7 +362,7 @@ def format_telegram_message(workflow, jobs, current_job_id):
 
         # Define the format string for aligning the columns
         # Use 4 spaces (tabs) for right column alignment
-        format_string = f"{{:<{max_left_width + 4}}} {{:>{max_left_width + 8}}}"
+        format_string = f"{{:<{max_left_width + 4}}} {{:>{max_left_width + 4}}}"
 
         # Get the maximum number of lines in either column
         max_lines = max(len(left_column), len(right_column))
@@ -371,7 +371,7 @@ def format_telegram_message(workflow, jobs, current_job_id):
         for i in range(max_lines):
             left = left_column[i] if i < len(left_column) else ""
             right = right_column[i] if i < len(right_column) else ""
-            message += format_string.format(left, right) + "\n\n"  # Add a newline after each row
+            message += format_string.format(left, right) + "\n"  # Add a newline after each row
 
         repo_url = workflow.get('repository', {}).get('html_url', '')
         repo_name = workflow.get('repository', {}).get('full_name', 'Unknown Repository')
