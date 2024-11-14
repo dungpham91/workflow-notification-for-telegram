@@ -110,25 +110,28 @@ def get_workflow_run(github_token, repo_name, run_id):
         logging.error(f"Failed to fetch workflow run: {e}", exc_info=True)
         sys.exit(1)
 
-def get_workflow_jobs(github_token, repo_name, run_id, current_job_name):
-    """Retrieves workflow job information, waits for other jobs to complete, and logs the process."""
+def get_workflow_jobs(github_token, repo_name, run_id):
+    """Retrieves workflow job information, waits for other jobs to complete, and logs the process.
+       Excludes the current job (notify-telegram) based on its ID.
+    """
     try:
-        logging.info("Fetching workflow job information and waiting for other jobs to complete...")
+        logging.info("Fetching workflow job information...")
         headers = {'Authorization': f'token {github_token}', 'Accept': 'application/vnd.github.v3+json'}
         url = f'https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/jobs'
+        current_job_id = os.getenv('GITHUB_JOB_ID') # get the ID of the current job
 
         while True:
             response = requests.get(url, headers=headers)
-            logging.info(f"GitHub API request URL (jobs): {url}")
-            logging.info(f"GitHub API response status code (jobs): {response.status_code}")
+            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            jobs_data = response.json()
 
-            response.raise_for_status()
-            jobs = response.json()
-
-            pending_jobs = [job for job in jobs['jobs'] if job['name'] != current_job_name and job.get('status') != 'completed']
+            pending_jobs = [
+                job for job in jobs_data['jobs']
+                if job.get('id') != current_job_id and job.get('status') != 'completed'
+            ]
             if not pending_jobs:
                 logging.info("All other jobs have completed.")
-                return jobs
+                return jobs_data
             else:
                 logging.info(f"Waiting for {len(pending_jobs)} job(s) to complete...")
                 time.sleep(5)
@@ -136,21 +139,22 @@ def get_workflow_jobs(github_token, repo_name, run_id, current_job_name):
         logging.error(f"Failed to fetch workflow jobs: {e}", exc_info=True)
         sys.exit(1)
 
-def calculate_total_duration(jobs, current_job_name):
-    """Calculates the total duration of all jobs except the current one."""
+def calculate_total_duration(jobs, current_job_id):
+    """Calculates the total duration of all jobs except the current one (using job ID)."""
     total_duration = timedelta(0)
-    for job in jobs['jobs']:
-        if job['name'] == current_job_name:
+    for job in jobs.get('jobs', []): # handles the jobs not being in the response.
+        if job.get('id') == current_job_id:
             continue  # Skip current job
 
         if job.get('started_at') and job.get('completed_at'):
-            try:  # Add a try-except block for time parsing
+            try:
                 start_time = datetime.strptime(job['started_at'], '%Y-%m-%dT%H:%M:%SZ')
                 end_time = datetime.strptime(job['completed_at'], '%Y-%m-%dT%H:%M:%SZ')
                 total_duration += (end_time - start_time)
-            except (ValueError, TypeError) as e: # handle incorrect datetime format
-                logging.warning(f"Error parsing start/end times for job {job['name']}: {e}")
-                continue # prevents action from crashing.
+            except (ValueError, TypeError) as e:
+                logging.warning(f"Error parsing start/end times for job {job.get('name', 'Unknown')}: {e}")
+                continue  # Skip this job if time parsing fails
+
     return total_duration
 
 def get_status_icon(conclusion):
@@ -248,7 +252,7 @@ def format_telegram_message(workflow, jobs, current_job_name):
         left_column = []
         right_column = []
 
-        filtered_jobs = [job for job in jobs['jobs'] if job['name'] != current_job_name]
+        filtered_jobs = [job for job in jobs['jobs'] if job.get('id') != current_job_id] # filter by ID
 
         for i, job in enumerate(filtered_jobs):
             job_name = job.get('name', 'Unknown Job')
@@ -306,9 +310,10 @@ if __name__ == "__main__":
         check_github_access(env['github_token'], env['repo_name'])
 
         workflow_run = get_workflow_run(env['github_token'], env['repo_name'], env['run_id'])
-        workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'], env['current_job_name'])
+        workflow_jobs = get_workflow_jobs(env['github_token'], env['repo_name'], env['run_id'])
+        current_job_id = os.getenv('GITHUB_JOB_ID')
 
-        message = format_telegram_message(workflow_run, workflow_jobs, env['current_job_name'])
+        message = format_telegram_message(workflow_run, workflow_jobs, current_job_id)  # Pass current_job_id
         send_telegram_message(env['telegram_token'], env['chat_id'], message)
 
         logging.info("Telegram notification action completed successfully.")
