@@ -120,10 +120,25 @@ def get_workflow_jobs(github_token, repo_name, run_id):
         url = f'https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/jobs'
         current_job_id = os.getenv('GITHUB_JOB_ID') # get the ID of the current job
 
-        while True:
+        attempts = 0
+        max_attempts = 5
+        while attempts < max_attempts:
             response = requests.get(url, headers=headers)
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            try:
+                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            except requests.exceptions.HTTPError as e:
+                logging.error(f"Error fetching job status: {e}")
+                # Có thể bạn muốn xử lý lỗi cụ thể hơn ở đây, ví dụ như retry sau một khoảng thời gian
+                return None
+
             jobs_data = response.json()
+
+            # Liệt kê tất cả các job và trạng thái
+            logging.info("Current job statuses:")
+            for job in jobs_data['jobs']:
+                job_id = job.get('id')
+                status = job.get('status')
+                logging.info(f"  Job ID: {job_id}, Status: {status}")
 
             pending_jobs = [
                 job for job in jobs_data['jobs']
@@ -135,6 +150,7 @@ def get_workflow_jobs(github_token, repo_name, run_id):
             else:
                 logging.info(f"Waiting for {len(pending_jobs)} job(s) to complete...")
                 time.sleep(5)
+                attempts += 1
     except requests.exceptions.RequestException as e:
         logging.error(f"Failed to fetch workflow jobs: {e}", exc_info=True)
         sys.exit(1)
