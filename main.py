@@ -359,10 +359,12 @@ def format_telegram_message(workflow, jobs, current_job_id):
 
         # Calculate the maximum width of the left column
         # Now, find the maximum width from both columns 
-        max_width = max(len(detail) for detail in left_column + right_column) if left_column + right_column else 0
+        max_left_width = max(len(detail) for detail in left_column) if left_column else 0
+        max_right_width = max(len(detail) for detail in right_column) if right_column else 0
+        max_width = max(max_left_width, max_right_width) # Find the max between left and right
 
         # Define the format string for aligning the columns
-        format_string = f"{{:<{max_width + 4}}} {{:>{max_width + 6}}}"
+        format_string = f"{{:<{max_width + 4}}} {{:>{max_width + 2}}}"
 
         # Get the maximum number of lines in either column
         max_lines = max(len(left_column), len(right_column))
